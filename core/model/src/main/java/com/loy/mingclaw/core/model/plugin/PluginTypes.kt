@@ -79,5 +79,5 @@ data class PluginInfo(
 )
 
 enum class PluginStatus {
-    Registered, Loading, Running, Stopped, Error, Unregistered
+    Unknown, Registered, Loading, Running, Stopped, Error, Unregistered
 }
