@@ -19,6 +19,11 @@ interface LlmService {
         maxTokens: Int = 4096,
     ): Result<Flow<ChatCompletionChunk>>
 
+    suspend fun generateEmbedding(
+        model: String = "text-embedding-v4",
+        texts: List<String>,
+    ): Result<List<List<Float>>>
+
     fun setApiKey(apiKey: String)
     fun setBaseUrl(baseUrl: String)
 }

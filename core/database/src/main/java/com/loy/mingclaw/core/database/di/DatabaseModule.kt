@@ -3,6 +3,8 @@ package com.loy.mingclaw.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.loy.mingclaw.core.database.MingClawDatabase
+import com.loy.mingclaw.core.database.dao.EmbeddingDao
+import com.loy.mingclaw.core.database.dao.MemoryDao
 import com.loy.mingclaw.core.database.dao.MessageDao
 import com.loy.mingclaw.core.database.dao.SessionDao
 import com.loy.mingclaw.core.database.dao.WorkspaceDao
@@ -25,7 +27,7 @@ object DatabaseModule {
         context,
         MingClawDatabase::class.java,
         "mingclaw_db",
-    ).build()
+    ).fallbackToDestructiveMigration().build()
 
     @Provides
     fun provideSessionDao(database: MingClawDatabase): SessionDao = database.sessionDao()
@@ -35,4 +37,10 @@ object DatabaseModule {
 
     @Provides
     fun provideWorkspaceDao(database: MingClawDatabase): WorkspaceDao = database.workspaceDao()
+
+    @Provides
+    fun provideMemoryDao(database: MingClawDatabase): MemoryDao = database.memoryDao()
+
+    @Provides
+    fun provideEmbeddingDao(database: MingClawDatabase): EmbeddingDao = database.embeddingDao()
 }

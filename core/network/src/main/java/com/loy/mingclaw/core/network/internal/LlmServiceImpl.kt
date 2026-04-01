@@ -6,6 +6,7 @@ import com.loy.mingclaw.core.network.dto.ChatCompletionChunk
 import com.loy.mingclaw.core.network.dto.ChatCompletionRequest
 import com.loy.mingclaw.core.network.dto.ChatCompletionResponse
 import com.loy.mingclaw.core.network.dto.ChatMessageDto
+import com.loy.mingclaw.core.network.dto.EmbeddingRequest
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +52,15 @@ internal class LlmServiceImpl @Inject constructor(
             stream = true,
         )
         llmApi.chatCompletionStream("Bearer $apiKey", request)
+    }
+
+    override suspend fun generateEmbedding(
+        model: String,
+        texts: List<String>,
+    ): Result<List<List<Float>>> = runCatching {
+        val request = EmbeddingRequest(model = model, input = texts)
+        val response = llmApi.createEmbedding("Bearer $apiKey", request)
+        response.data.sortedBy { it.index }.map { it.embedding }
     }
 
     override fun setApiKey(apiKey: String) {
