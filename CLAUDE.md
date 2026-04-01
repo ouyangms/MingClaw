@@ -4,103 +4,108 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MingClaw is an Android application built with Kotlin. This project includes the `claude-android-skill` directory which contains comprehensive Android development patterns and best practices based on Google's NowInAndroid reference app.
+MingClaw is an Android AI Agent application built with Kotlin, designed with a **plugin-based microkernel architecture** supporting self-evolution (behavior, knowledge, and capability). The project is currently in the design phase — the app module has no source code yet, with implementation to follow the detailed design documents in `docs/design/`.
 
-**Package**: `com.loy.mingclaw`
-**Build System**: Gradle with Kotlin DSL
-**Compile SDK**: 36
-**Min SDK**: 32
-**Target SDK**: 36
+- **Package**: `com.loy.mingclaw`
+- **Compile SDK / Target SDK**: 36 | **Min SDK**: 32
+- **Gradle**: 8.13 with Kotlin DSL | **AGP**: 8.13.2 | **Kotlin**: 2.0.21
+- **Status**: Design complete (v2.0), implementation pending
 
 ## Development Commands
 
-### Build
 ```bash
-# Build debug APK
-./gradlew assembleDebug
+# Build
+./gradlew assembleDebug          # Debug APK
+./gradlew assembleRelease        # Release APK
+./gradlew clean                  # Clean build
 
-# Build release APK
-./gradlew assembleRelease
+# Test
+./gradlew test                              # All unit tests
+./gradlew test --tests com.loy.mingclaw.ExampleUnitTest  # Single test class
+./gradlew connectedAndroidTest              # Instrumented tests (device required)
 
-# Clean build
-./gradlew clean
+# Install
+./gradlew installDebug           # Install debug build to device
 ```
 
-### Testing
-```bash
-# Run unit tests
-./gradlew test
+## Architecture
 
-# Run instrumented tests (requires connected device/emulator)
-./gradlew connectedAndroidTest
+MingClaw uses a **four-layer plugin-based microkernel** architecture:
 
-# Run specific test class
-./gradlew test --tests ExampleUnitTest
+1. **Self-Evolution Layer** — Behavior/Knowledge/Capability evolvers with feedback collection; persists to AGENTS.md, MEMORY.md, SKILLS/, EXPERIENCE/
+2. **Application Layer** — Chat UI, Task Monitor, Plugin Manager, Settings
+3. **Core Layer** — Microkernel (Plugin Registry, Event Bus, Task Dispatcher, Config Manager) + Core Services (Context, Memory, Session, LLM, Security)
+4. **Data Layer** — Room DB, DataStore, File System, SharedPreferences
+
+Key architectural patterns:
+- **Offline-first**: Local database as source of truth
+- **Unidirectional data flow**: Events flow down, data flows up
+- **Reactive streams**: Kotlin Flow for data exposure
+- **Modular by feature**: Each feature self-contained with `api/` (public contracts) and `impl/` (internal) submodules
+- **Testable by design**: Test doubles instead of mocking libraries
+
+### Planned Module Structure
+
+```
+app/                        # Application shell
+feature/
+  └── featurename/
+      ├── api/              # Navigation contracts (public)
+      └── impl/             # Screen, ViewModel, DI (internal)
+core/
+  ├── data/                 # Repositories
+  ├── database/             # Room DAOs & entities
+  ├── network/              # Retrofit & API models
+  ├── model/                # Domain models (pure Kotlin)
+  ├── ui/                   # Reusable Compose components
+  └── designsystem/         # Theme & design tokens
 ```
 
-### Installation
-```bash
-# Install debug build to connected device
-./gradlew installDebug
-```
+## Design Documentation
 
-## Architecture Guidelines
+The `docs/design/` directory contains the complete system design (~550KB across 16 documents). When implementing features, consult these in order:
 
-This project follows the Android development patterns documented in `claude-android-skill/`. When implementing features, refer to:
+| Priority | Document | Content |
+|----------|----------|---------|
+| Read first | `modules/01-architecture.md` | Overall architecture, layer design, core components |
+| Read first | `modules/10-tech-stack.md` | Core technologies (Compose, Hilt, Room, Coroutines) and versions |
+| Read first | `modules/13-implementation-guide.md` | Dev environment, coding standards, deployment |
+| Per feature | `modules/14-api-reference.md` | Complete public interface definitions in Kotlin |
+| As needed | `modules/03-core-modules.md` | Microkernel, event bus, configuration |
+| As needed | `modules/05-plugin-system.md` | Plugin interface, tool system, loading |
+| As needed | `modules/02-evolution.md` | Three-path evolution system |
+| As needed | `modules/04-context-management.md` | Session, memory retrieval, token window |
+| As needed | `modules/06-memory-management.md` | Memory storage, vector embedding, hybrid search |
+| As needed | `modules/07-task-orchestration.md` | Task execution, workflow, dependency management |
 
-| Topic | Documentation |
-|-------|---------------|
-| Project structure & modules | `claude-android-skill/references/modularization.md` |
+The consolidated design is in `docs/design/mingclaw-android-agent-design.md`.
+
+## Android Development Reference
+
+The `claude-android-skill/` directory is a portable Claude Code skill with NowInAndroid-based patterns:
+
+| Topic | Reference |
+|-------|-----------|
 | Architecture layers (UI, Domain, Data) | `claude-android-skill/references/architecture.md` |
 | Jetpack Compose patterns | `claude-android-skill/references/compose-patterns.md` |
-| Build configuration | `claude-android-skill/references/gradle-setup.md` |
+| Gradle & convention plugins | `claude-android-skill/references/gradle-setup.md` |
+| Multi-module structure | `claude-android-skill/references/modularization.md` |
 | Testing strategies | `claude-android-skill/references/testing.md` |
+| Feature module scaffolding | `claude-android-skill/scripts/generate_feature.py` |
 
-### Core Principles
+## Dependency Management
 
-1. **Offline-first**: Local database as source of truth, sync with remote
-2. **Unidirectional data flow**: Events flow down, data flows up
-3. **Reactive streams**: Use Kotlin Flow for data exposure
-4. **Modular by feature**: Each feature self-contained with clear boundaries
-5. **Testable by design**: Use test doubles instead of mocking libraries
+Dependencies are managed via `gradle/libs.versions.toml`. To add a dependency:
 
-### Recommended Module Structure
+1. Add version to `[versions]` section
+2. Add library to `[libraries]` section
+3. Reference using `libs.library.name` in build files
 
-```
-app/                    # Application module
-feature/
-  ├── featurename/
-  │   ├── api/          # Public navigation contracts
-  │   └── impl/         # Screen, ViewModel, DI (internal)
-core/
-  ├── data/             # Repositories
-  ├── database/         # Room DAOs & entities
-  ├── network/          # Retrofit & API models
-  ├── model/            # Domain models (pure Kotlin)
-  ├── ui/               # Reusable Compose components
-  ├── designsystem/     # Theme & design tokens
-  └── testing/          # Test utilities
-```
+The design docs specify a full tech stack (Compose 1.7+, Hilt 2.51+, Room 2.6+, Retrofit 2.11+, Coroutines 1.7+) that needs to be added to the version catalog during implementation. See `modules/10-tech-stack.md` for the complete planned dependency list and `claude-android-skill/assets/templates/libs.versions.toml.template` for a pre-built catalog template.
 
-## Key Patterns
+## Key Code Patterns
 
-### Feature Module Pattern
-
-When creating a new feature, use this structure:
-
-```
-feature/myfeature/
-├── api/
-│   └── MyFeatureNavigation.kt    # Navigation keys/routes
-└── impl/
-    ├── MyFeatureScreen.kt        # Composable UI
-    ├── MyFeatureViewModel.kt     # State holder
-    ├── MyFeatureUiState.kt       # Sealed interface for states
-    └── di/MyFeatureModule.kt     # Hilt DI module
-```
-
-### ViewModel Pattern
-
+### ViewModel (from design docs)
 ```kotlin
 @HiltViewModel
 class MyFeatureViewModel @Inject constructor(
@@ -117,8 +122,7 @@ class MyFeatureViewModel @Inject constructor(
 }
 ```
 
-### Repository Pattern
-
+### Repository (offline-first)
 ```kotlin
 interface MyRepository {
     fun getData(): Flow<List<MyModel>>
@@ -132,28 +136,3 @@ internal class OfflineFirstMyRepository @Inject constructor(
         dao.getAll().map { it.toModel() }
 }
 ```
-
-## Android Development Skill
-
-The `claude-android-skill/` directory is a portable skill for Claude Code that can be used across Android projects. It contains:
-
-- **SKILL.md**: Main skill definition with quick reference
-- **references/**: Detailed documentation on architecture, Compose, Gradle, modularization, and testing
-- **assets/templates/**: Project templates for Gradle configuration
-- **scripts/**: Feature module generator script
-
-When working on this project, always consult the reference documentation in `claude-android-skill/references/` for implementation guidance.
-
-## Version Catalog
-
-Dependencies are managed via `gradle/libs.versions.toml`. When adding new dependencies:
-
-1. Add version to `[versions]` section
-2. Add library to `[libraries]` section
-3. Reference using `libs.library.name` in build files
-
-## Notes
-
-- The project currently uses basic AndroidX dependencies (core-ktx, appcompat, material)
-- For modern Android development with Compose, Hilt, and Room, refer to the patterns in `claude-android-skill/references/gradle-setup.md`
-- Use the feature generator script at `claude-android-skill/scripts/generate_feature.py` for scaffolding new modules
