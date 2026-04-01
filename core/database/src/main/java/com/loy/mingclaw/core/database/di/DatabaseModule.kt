@@ -27,6 +27,7 @@ object DatabaseModule {
         context,
         MingClawDatabase::class.java,
         "mingclaw_db",
+    // TODO: Replace fallbackToDestructiveMigration with proper migrations before production
     ).fallbackToDestructiveMigration().build()
 
     @Provides

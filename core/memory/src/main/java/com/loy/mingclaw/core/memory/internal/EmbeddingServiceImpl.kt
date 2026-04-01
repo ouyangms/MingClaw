@@ -1,5 +1,6 @@
 package com.loy.mingclaw.core.memory.internal
 
+import com.loy.mingclaw.core.common.llm.CloudLlm
 import com.loy.mingclaw.core.memory.EmbeddingService
 import com.loy.mingclaw.core.model.llm.LlmProvider
 import javax.inject.Inject
@@ -7,15 +8,17 @@ import javax.inject.Singleton
 
 @Singleton
 internal class EmbeddingServiceImpl @Inject constructor(
-    private val llmProvider: LlmProvider,
+    @CloudLlm private val llmProvider: LlmProvider,
 ) : EmbeddingService {
+
+    private var embeddingModel: String = "text-embedding-v4"
 
     override suspend fun generateEmbedding(text: String): Result<List<Float>> {
         return generateEmbeddings(listOf(text)).map { it.firstOrNull() ?: emptyList() }
     }
 
     override suspend fun generateEmbeddings(texts: List<String>): Result<List<List<Float>>> {
-        return llmProvider.embed(model = "text-embedding-v4", texts = texts)
+        return llmProvider.embed(model = embeddingModel, texts = texts)
     }
 
     override fun similarity(a: List<Float>, b: List<Float>): Float {

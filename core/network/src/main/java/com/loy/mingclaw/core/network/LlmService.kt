@@ -25,5 +25,4 @@ interface LlmService {
     ): Result<List<List<Float>>>
 
     fun setApiKey(apiKey: String)
-    fun setBaseUrl(baseUrl: String)
 }

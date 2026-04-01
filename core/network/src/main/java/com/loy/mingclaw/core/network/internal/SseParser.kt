@@ -6,9 +6,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import okhttp3.Response
 
-internal class SseParser {
-
-    private val json = Json { ignoreUnknownKeys = true }
+internal class SseParser(private val json: Json) {
 
     fun parseStream(response: Response): Flow<ChatCompletionChunk> = flow {
         // Simplified SSE parsing - reads line by line

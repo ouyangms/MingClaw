@@ -22,8 +22,8 @@ import com.loy.mingclaw.core.database.entity.WorkspaceEntity
         MemoryEntity::class,
         EmbeddingEntity::class,
     ],
-    version = 2,
-    exportSchema = false,
+    version = 3,
+    exportSchema = true,
 )
 @TypeConverters(Converters::class)
 abstract class MingClawDatabase : RoomDatabase() {

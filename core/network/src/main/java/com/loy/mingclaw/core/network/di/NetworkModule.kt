@@ -1,5 +1,7 @@
 package com.loy.mingclaw.core.network.di
 
+import android.content.Context
+import android.content.pm.ApplicationInfo
 import com.loy.mingclaw.core.common.llm.CloudLlm
 import com.loy.mingclaw.core.model.llm.LlmProvider
 import com.loy.mingclaw.core.network.LlmService
@@ -7,11 +9,13 @@ import com.loy.mingclaw.core.network.api.LlmApi
 import com.loy.mingclaw.core.network.internal.AuthInterceptor
 import com.loy.mingclaw.core.network.internal.CloudLlmProvider
 import com.loy.mingclaw.core.network.internal.LlmServiceImpl
+import com.loy.mingclaw.core.network.internal.SseParser
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -48,11 +52,16 @@ internal abstract class NetworkModule {
 
         @Provides
         @Singleton
-        fun provideOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
+        fun provideOkHttpClient(
+            authInterceptor: AuthInterceptor,
+            @ApplicationContext context: Context,
+        ): OkHttpClient {
+            val isDebug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
             return OkHttpClient.Builder()
                 .addInterceptor(authInterceptor)
                 .addInterceptor(HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
+                    level = if (isDebug) HttpLoggingInterceptor.Level.BODY
+                           else HttpLoggingInterceptor.Level.NONE
                 })
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(120, TimeUnit.SECONDS) // Longer for LLM responses
@@ -61,9 +70,9 @@ internal abstract class NetworkModule {
 
         @Provides
         @Singleton
-        fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit {
+        fun provideRetrofit(okHttpClient: OkHttpClient, json: Json, authInterceptor: AuthInterceptor): Retrofit {
             return Retrofit.Builder()
-                .baseUrl("https://api.openai.com/")
+                .baseUrl(authInterceptor.baseUrl)
                 .client(okHttpClient)
                 .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
                 .build()
@@ -72,6 +81,10 @@ internal abstract class NetworkModule {
         @Provides
         @Singleton
         fun provideLlmApi(retrofit: Retrofit): LlmApi = retrofit.create(LlmApi::class.java)
+
+        @Provides
+        @Singleton
+        fun provideSseParser(json: Json): SseParser = SseParser(json)
 
         @Provides
         @Singleton

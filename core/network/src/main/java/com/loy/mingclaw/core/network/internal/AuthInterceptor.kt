@@ -10,6 +10,9 @@ internal class AuthInterceptor @Inject constructor() : Interceptor {
     @Volatile
     var apiKey: String = ""
 
+    @Volatile
+    var baseUrl: String = "https://api.openai.com/"
+
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = if (apiKey.isNotBlank()) {
             chain.request().newBuilder()

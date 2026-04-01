@@ -6,6 +6,12 @@ plugins {
 
 android {
     namespace = "com.loy.mingclaw.core.database"
+
+    defaultConfig {
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
+        }
+    }
 }
 
 dependencies {

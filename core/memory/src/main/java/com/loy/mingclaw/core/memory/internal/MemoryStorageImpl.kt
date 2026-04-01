@@ -94,7 +94,7 @@ internal class MemoryStorageImpl @Inject constructor(
 
     override suspend fun getStatistics(): MemoryStatistics = withContext(ioDispatcher) {
         val total = memoryDao.count()
-        val byType = MemoryType.values().associateWith { type ->
+        val byType = MemoryType.entries.associateWith { type ->
             memoryDao.countByType(type.name)
         }
         val avgImportance = memoryDao.getAverageImportance() ?: 0f
@@ -107,7 +107,13 @@ internal class MemoryStorageImpl @Inject constructor(
     }
 
     override suspend fun cleanup(beforeTimestamp: Long): Result<Int> = withContext(ioDispatcher) {
-        runCatching { memoryDao.deleteBefore(beforeTimestamp) }
+        runCatching {
+            val ids = memoryDao.getIdsBefore(beforeTimestamp)
+            if (ids.isNotEmpty()) {
+                embeddingDao.deleteAll(ids)
+            }
+            memoryDao.deleteBefore(beforeTimestamp)
+        }
     }
 
     private fun Memory.toEntity(): MemoryEntity = MemoryEntity(
@@ -129,7 +135,7 @@ internal class MemoryStorageImpl @Inject constructor(
         return Memory(
             id = id,
             content = content,
-            type = MemoryType.values().find { it.name == type } ?: MemoryType.ShortTerm,
+            type = MemoryType.entries.find { it.name == type } ?: MemoryType.ShortTerm,
             importance = importance,
             metadata = try { json.decodeFromString<Map<String, String>>(metadata) } catch (_: Exception) { emptyMap() },
             embedding = embeddingList,

@@ -48,4 +48,7 @@ interface MemoryDao {
 
     @Query("DELETE FROM memories WHERE created_at < :beforeEpochMillis")
     suspend fun deleteBefore(beforeEpochMillis: Long): Int
+
+    @Query("SELECT id FROM memories WHERE created_at < :beforeEpochMillis")
+    suspend fun getIdsBefore(beforeEpochMillis: Long): List<String>
 }
