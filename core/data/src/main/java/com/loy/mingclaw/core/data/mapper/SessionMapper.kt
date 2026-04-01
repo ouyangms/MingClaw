@@ -3,6 +3,7 @@ package com.loy.mingclaw.core.data.mapper
 import com.loy.mingclaw.core.database.entity.SessionEntity
 import com.loy.mingclaw.core.model.context.Session
 import com.loy.mingclaw.core.model.context.SessionStatus
+import kotlinx.datetime.Instant
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -21,8 +22,8 @@ fun Session.asEntity(): SessionEntity = SessionEntity(
 fun SessionEntity.asDomain(): Session = Session(
     id = id,
     title = title,
-    createdAt = kotlinx.datetime.Instant.fromEpochMilliseconds(createdAt),
-    updatedAt = kotlinx.datetime.Instant.fromEpochMilliseconds(updatedAt),
+    createdAt = Instant.fromEpochMilliseconds(createdAt),
+    updatedAt = Instant.fromEpochMilliseconds(updatedAt),
     metadata = try {
         json.decodeFromString(MapSerializer(String.serializer(), String.serializer()), metadata)
     } catch (_: Exception) {

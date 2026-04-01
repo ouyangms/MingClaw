@@ -8,10 +8,12 @@ import com.loy.mingclaw.core.data.repository.ChatStreamResult
 import com.loy.mingclaw.core.data.repository.SessionRepository
 import com.loy.mingclaw.core.model.context.Message
 import com.loy.mingclaw.core.model.context.MessageRole
+import com.loy.mingclaw.core.model.llm.ChatMessage
 import com.loy.mingclaw.core.model.llm.LlmProvider
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import java.util.UUID
@@ -28,18 +30,7 @@ internal class OfflineFirstChatRepository @Inject constructor(
     override fun chatStream(request: ChatRequest): Flow<ChatStreamResult> = flow {
         // Persist user messages first
         for (msg in request.messages) {
-            val userMessage = Message(
-                id = UUID.randomUUID().toString(),
-                sessionId = request.sessionId,
-                role = when (msg.role) {
-                    "user" -> MessageRole.User
-                    "system" -> MessageRole.System
-                    "tool" -> MessageRole.Tool
-                    else -> MessageRole.User
-                },
-                content = msg.content,
-                timestamp = Clock.System.now(),
-            )
+            val userMessage = msg.toDomainMessage(request.sessionId)
             sessionRepository.addMessage(request.sessionId, userMessage)
         }
 
@@ -84,23 +75,12 @@ internal class OfflineFirstChatRepository @Inject constructor(
         sessionRepository.addMessage(request.sessionId, assistantMessage)
 
         emit(ChatStreamResult.Complete(fullContent))
-    }
+    }.flowOn(ioDispatcher)
 
     override suspend fun chat(request: ChatRequest): Result<String> = withContext(ioDispatcher) {
         // Persist user messages
         for (msg in request.messages) {
-            val userMessage = Message(
-                id = UUID.randomUUID().toString(),
-                sessionId = request.sessionId,
-                role = when (msg.role) {
-                    "user" -> MessageRole.User
-                    "system" -> MessageRole.System
-                    "tool" -> MessageRole.Tool
-                    else -> MessageRole.User
-                },
-                content = msg.content,
-                timestamp = Clock.System.now(),
-            )
+            val userMessage = msg.toDomainMessage(request.sessionId)
             sessionRepository.addMessage(request.sessionId, userMessage)
         }
 
@@ -112,7 +92,7 @@ internal class OfflineFirstChatRepository @Inject constructor(
         )
 
         if (result.isFailure) {
-            return@withContext Result.failure(result.exceptionOrNull()!!)
+            return@withContext Result.failure(result.exceptionOrNull() ?: RuntimeException("Unknown error"))
         }
 
         val response = result.getOrThrow()
@@ -129,4 +109,18 @@ internal class OfflineFirstChatRepository @Inject constructor(
 
         Result.success(response.content)
     }
+
+    private fun ChatMessage.toDomainMessage(sessionId: String): Message = Message(
+        id = UUID.randomUUID().toString(),
+        sessionId = sessionId,
+        role = when (role.lowercase()) {
+            "user" -> MessageRole.User
+            "assistant" -> MessageRole.Assistant
+            "system" -> MessageRole.System
+            "tool" -> MessageRole.Tool
+            else -> MessageRole.User
+        },
+        content = content,
+        timestamp = Clock.System.now(),
+    )
 }

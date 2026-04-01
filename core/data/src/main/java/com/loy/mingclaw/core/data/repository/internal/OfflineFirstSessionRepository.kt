@@ -11,6 +11,7 @@ import com.loy.mingclaw.core.model.context.MessageRole
 import com.loy.mingclaw.core.model.context.Session
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -53,9 +54,11 @@ internal class OfflineFirstSessionRepository @Inject constructor(
 
     override fun observeAllSessions(): Flow<List<Session>> =
         sessionDao.observeAll().map { sessions -> sessions.map { it.asDomain() } }
+            .flowOn(ioDispatcher)
 
     override fun observeSession(sessionId: String): Flow<Session?> =
         sessionDao.observeById(sessionId).map { it?.asDomain() }
+            .flowOn(ioDispatcher)
 
     override suspend fun addMessage(sessionId: String, message: Message): Message =
         withContext(ioDispatcher) {
