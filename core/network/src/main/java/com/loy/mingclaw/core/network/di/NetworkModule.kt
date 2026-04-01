@@ -1,8 +1,11 @@
 package com.loy.mingclaw.core.network.di
 
+import com.loy.mingclaw.core.common.llm.CloudLlm
+import com.loy.mingclaw.core.model.llm.LlmProvider
 import com.loy.mingclaw.core.network.LlmService
 import com.loy.mingclaw.core.network.api.LlmApi
 import com.loy.mingclaw.core.network.internal.AuthInterceptor
+import com.loy.mingclaw.core.network.internal.CloudLlmProvider
 import com.loy.mingclaw.core.network.internal.LlmServiceImpl
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Binds
@@ -25,6 +28,11 @@ internal abstract class NetworkModule {
     @Binds
     @Singleton
     abstract fun bindLlmService(impl: LlmServiceImpl): LlmService
+
+    @Binds
+    @Singleton
+    @CloudLlm
+    abstract fun bindCloudLlmProvider(impl: CloudLlmProvider): LlmProvider
 
     companion object {
         @Provides
@@ -64,5 +72,9 @@ internal abstract class NetworkModule {
         @Provides
         @Singleton
         fun provideLlmApi(retrofit: Retrofit): LlmApi = retrofit.create(LlmApi::class.java)
+
+        @Provides
+        @Singleton
+        fun provideDefaultLlmProvider(@CloudLlm cloud: LlmProvider): LlmProvider = cloud
     }
 }

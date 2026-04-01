@@ -1,7 +1,7 @@
 package com.loy.mingclaw.core.memory
 
 import com.loy.mingclaw.core.memory.internal.EmbeddingServiceImpl
-import com.loy.mingclaw.core.network.LlmService
+import com.loy.mingclaw.core.model.llm.LlmProvider
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -13,12 +13,12 @@ import org.junit.Test
 class MemoryManagerImplTest {
 
     private lateinit var embeddingService: EmbeddingServiceImpl
-    private val llmService = mockk<LlmService>()
+    private val llmProvider = mockk<LlmProvider>()
 
     @Before
     fun setup() {
-        coEvery { llmService.generateEmbedding(texts = any()) } returns Result.success(listOf(listOf(0.1f, 0.2f)))
-        embeddingService = EmbeddingServiceImpl(llmService)
+        coEvery { llmProvider.embed(model = any(), texts = any()) } returns Result.success(listOf(listOf(0.1f, 0.2f)))
+        embeddingService = EmbeddingServiceImpl(llmProvider)
     }
 
     @Test
