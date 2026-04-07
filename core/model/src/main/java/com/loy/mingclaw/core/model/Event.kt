@@ -51,4 +51,25 @@ sealed interface Event {
         val config: KernelConfig,
         override val timestamp: Instant = Clock.System.now(),
     ) : Event
+
+    @Serializable
+    data class EvolutionTriggered(
+        val evolutionType: String,
+        val reason: String,
+        override val timestamp: Instant = Clock.System.now(),
+    ) : Event
+
+    @Serializable
+    data class EvolutionCompleted(
+        val evolutionId: String,
+        val changes: List<String>,
+        override val timestamp: Instant = Clock.System.now(),
+    ) : Event
+
+    @Serializable
+    data class EvolutionFailed(
+        val evolutionId: String,
+        val error: String,
+        override val timestamp: Instant = Clock.System.now(),
+    ) : Event
 }
