@@ -15,6 +15,7 @@ enum class ImplicitAction { REGENERATED, EDITED, COPIED, IGNORED, FOLLOWED_UP, A
 @Serializable
 enum class Trend { IMPROVING, STABLE, DECLINING }
 
+@Serializable
 sealed class UserFeedback {
     abstract val feedbackId: String
     abstract val timestamp: Instant
