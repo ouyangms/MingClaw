@@ -2,125 +2,91 @@ package com.loy.mingclaw.core.context.internal
 
 import com.loy.mingclaw.core.common.dispatchers.IODispatcher
 import com.loy.mingclaw.core.context.SessionContextManager
-import com.loy.mingclaw.core.context.TokenEstimator
+import com.loy.mingclaw.core.data.repository.SessionRepository
 import com.loy.mingclaw.core.model.context.Message
 import com.loy.mingclaw.core.model.context.Session
-import com.loy.mingclaw.core.model.context.SessionContext
 import com.loy.mingclaw.core.model.context.SessionEvent
-import com.loy.mingclaw.core.model.context.SessionStatus
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 internal class SessionContextManagerImpl @Inject constructor(
-    private val tokenEstimator: TokenEstimator,
-    @IODispatcher private val dispatcher: CoroutineDispatcher,
+    private val sessionRepository: SessionRepository,
+    @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : SessionContextManager {
 
-    private val sessions = ConcurrentHashMap<String, Session>()
-    private val messages = ConcurrentHashMap<String, MutableList<Message>>()
-    private val sessionEvents = ConcurrentHashMap<String, MutableSharedFlow<SessionEvent>>()
+    private val sessionEvents = MutableSharedFlow<SessionEvent>(replay = 10)
 
-    override suspend fun createSession(
-        title: String?,
-        metadata: Map<String, String>,
-    ): Result<Session> = withContext(dispatcher) {
-        val sessionId = UUID.randomUUID().toString()
-        val now = kotlinx.datetime.Clock.System.now()
-        val session = Session(
-            id = sessionId,
-            title = title ?: "Session ${now.toEpochMilliseconds()}",
-            createdAt = now,
-            updatedAt = now,
-            metadata = metadata,
-            status = SessionStatus.Active,
-        )
-        sessions[sessionId] = session
-        messages[sessionId] = mutableListOf()
-        sessionEvents[sessionId] = MutableSharedFlow(replay = 10)
-        emitEvent(sessionId, SessionEvent.Created(session))
-        Result.success(session)
-    }
+    override suspend fun createSession(title: String?): Result<Session> =
+        withContext(ioDispatcher) {
+            try {
+                val session = sessionRepository.createSession(
+                    title = title ?: "Session ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}"
+                )
+                sessionEvents.emit(SessionEvent.Created(session))
+                Result.success(session)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
-    override suspend fun getSession(sessionId: String): Result<Session> {
-        val session = sessions[sessionId]
-            ?: return Result.failure(IllegalArgumentException("Session not found: $sessionId"))
-        return Result.success(session)
-    }
-
-    override suspend fun getSessionContext(sessionId: String): Result<SessionContext> {
-        val session = sessions[sessionId]
-            ?: return Result.failure(IllegalArgumentException("Session not found: $sessionId"))
-        val sessionMessages = messages[sessionId] ?: emptyList()
-        return Result.success(
-            SessionContext(
-                sessionId = session.id,
-                title = session.title,
-                messages = sessionMessages.toList(),
-                metadata = session.metadata,
-                status = session.status,
-            )
-        )
-    }
+    override suspend fun getSession(sessionId: String): Result<Session> =
+        withContext(ioDispatcher) {
+            try {
+                val session = sessionRepository.getSession(sessionId)
+                    ?: return@withContext Result.failure(
+                        IllegalArgumentException("Session not found: $sessionId")
+                    )
+                Result.success(session)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
     override suspend fun addMessage(sessionId: String, message: Message): Result<Message> =
-        withContext(dispatcher) {
-            val session = sessions[sessionId]
-                ?: return@withContext Result.failure(IllegalArgumentException("Session not found: $sessionId"))
-            val now = kotlinx.datetime.Clock.System.now()
-            val savedMessage = message.copy(sessionId = sessionId, timestamp = message.timestamp ?: now)
-            messages.getOrPut(sessionId) { mutableListOf() }.add(savedMessage)
-            sessions[sessionId] = session.copy(updatedAt = now)
-            emitEvent(sessionId, SessionEvent.MessageAdded(savedMessage))
-            Result.success(savedMessage)
+        withContext(ioDispatcher) {
+            try {
+                val saved = sessionRepository.addMessage(sessionId, message)
+                sessionEvents.emit(SessionEvent.MessageAdded(saved))
+                Result.success(saved)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
 
-    override suspend fun getConversationHistory(sessionId: String, limit: Int?): Result<List<Message>> {
-        val sessionMessages = messages[sessionId]
-            ?: return Result.failure(IllegalArgumentException("Session not found: $sessionId"))
-        val result = if (limit != null) sessionMessages.takeLast(limit) else sessionMessages.toList()
-        return Result.success(result)
-    }
-
-    override suspend fun deleteSession(sessionId: String): Result<Unit> {
-        sessions.remove(sessionId)
-        messages.remove(sessionId)
-        sessionEvents.remove(sessionId)
-        return Result.success(Unit)
-    }
-
-    override suspend fun archiveSession(sessionId: String): Result<Unit> {
-        val session = sessions[sessionId]
-            ?: return Result.failure(IllegalArgumentException("Session not found: $sessionId"))
-        val now = kotlinx.datetime.Clock.System.now()
-        sessions[sessionId] = session.copy(status = SessionStatus.Archived, updatedAt = now)
-        emitEvent(sessionId, SessionEvent.StatusChanged(SessionStatus.Archived))
-        return Result.success(Unit)
-    }
-
-    override suspend fun getAllSessions(includeArchived: Boolean): Result<List<Session>> {
-        val result = if (includeArchived) {
-            sessions.values.toList()
-        } else {
-            sessions.values.filter { it.status == SessionStatus.Active }
+    override suspend fun getConversationHistory(sessionId: String, limit: Int?): Result<List<Message>> =
+        withContext(ioDispatcher) {
+            try {
+                val messages = if (limit != null) {
+                    sessionRepository.getMessages(sessionId, limit)
+                } else {
+                    sessionRepository.getMessages(sessionId)
+                }
+                Result.success(messages)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
         }
-        return Result.success(result)
-    }
 
-    override fun watchSession(sessionId: String): Flow<SessionEvent> {
-        return sessionEvents.getOrPut(sessionId) {
-            MutableSharedFlow(replay = 10)
-        }.asSharedFlow()
-    }
+    override suspend fun deleteSession(sessionId: String): Result<Unit> =
+        withContext(ioDispatcher) {
+            try {
+                sessionRepository.deleteSession(sessionId)
+                sessionEvents.emit(SessionEvent.Deleted(sessionId))
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
-    private suspend fun emitEvent(sessionId: String, event: SessionEvent) {
-        sessionEvents[sessionId]?.emit(event)
-    }
+    // MVP: 后续增强 - simple mapping from observeMessages, no complex event aggregation
+    override fun observeSessionEvents(sessionId: String): Flow<SessionEvent> =
+        sessionRepository.observeMessages(sessionId).map { messages ->
+            SessionEvent.MessageAdded(messages.last())
+        }
 }

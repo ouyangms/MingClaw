@@ -1,129 +1,135 @@
 package com.loy.mingclaw.core.context
 
+import app.cash.turbine.test
+import com.loy.mingclaw.core.context.internal.SessionContextManagerImpl
+import com.loy.mingclaw.core.data.repository.SessionRepository
 import com.loy.mingclaw.core.model.context.Message
 import com.loy.mingclaw.core.model.context.MessageRole
-import com.loy.mingclaw.core.model.context.SessionStatus
-import com.loy.mingclaw.core.context.internal.SessionContextManagerImpl
-import com.loy.mingclaw.core.context.internal.TokenEstimatorImpl
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestDispatcher
+import com.loy.mingclaw.core.model.context.Session
+import com.loy.mingclaw.core.model.context.SessionEvent
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Clock
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class SessionContextManagerImplTest {
+    private val sessionRepository = mockk<SessionRepository>()
     private lateinit var manager: SessionContextManagerImpl
-    private val testDispatcher: TestDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
-        manager = SessionContextManagerImpl(TokenEstimatorImpl(), testDispatcher)
+        manager = SessionContextManagerImpl(
+            sessionRepository = sessionRepository,
+            ioDispatcher = Dispatchers.Unconfined,
+        )
     }
 
     @Test
-    fun `createSession creates session with default title`() = runTest(testDispatcher) {
-        val result = manager.createSession()
-        assertTrue(result.isSuccess)
-        val session = result.getOrThrow()
-        assertTrue(session.title.isNotEmpty())
-        assertEquals(SessionStatus.Active, session.status)
-    }
+    fun `createSession delegates to repository`() = runTest {
+        val now = Clock.System.now()
+        val session = Session(id = "s1", title = "My Chat", createdAt = now, updatedAt = now)
+        coEvery { sessionRepository.createSession("My Chat") } returns session
 
-    @Test
-    fun `createSession creates session with custom title`() = runTest(testDispatcher) {
         val result = manager.createSession(title = "My Chat")
         assertTrue(result.isSuccess)
-        assertEquals("My Chat", result.getOrThrow().title)
+        assertEquals("s1", result.getOrThrow().id)
+        coVerify { sessionRepository.createSession("My Chat") }
     }
 
     @Test
-    fun `getSession returns created session`() = runTest(testDispatcher) {
-        val created = manager.createSession(title = "Test").getOrThrow()
-        val result = manager.getSession(created.id)
+    fun `createSession with null title generates default`() = runTest {
+        coEvery { sessionRepository.createSession(any()) } answers {
+            Session(id = "s1", title = firstArg(), createdAt = Clock.System.now(), updatedAt = Clock.System.now())
+        }
+
+        val result = manager.createSession()
+        assertTrue(result.isSuccess)
+        assertTrue(result.getOrThrow().title.startsWith("Session "))
+    }
+
+    @Test
+    fun `getSession returns session from repository`() = runTest {
+        val now = Clock.System.now()
+        val session = Session(id = "s1", title = "Test", createdAt = now, updatedAt = now)
+        coEvery { sessionRepository.getSession("s1") } returns session
+
+        val result = manager.getSession("s1")
         assertTrue(result.isSuccess)
         assertEquals("Test", result.getOrThrow().title)
     }
 
     @Test
-    fun `getSession returns failure for unknown id`() = runTest(testDispatcher) {
-        val result = manager.getSession("nonexistent")
+    fun `getSession returns failure for missing session`() = runTest {
+        coEvery { sessionRepository.getSession("missing") } returns null
+
+        val result = manager.getSession("missing")
         assertTrue(result.isFailure)
     }
 
     @Test
-    fun `addMessage stores message in session`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "Chat").getOrThrow()
-        val message = Message(id = "msg-1", sessionId = session.id, role = MessageRole.User, content = "Hello!")
-        val result = manager.addMessage(session.id, message)
+    fun `addMessage delegates to repository`() = runTest {
+        val now = Clock.System.now()
+        val message = Message(id = "m1", sessionId = "s1", role = MessageRole.User, content = "Hello", timestamp = now)
+        coEvery { sessionRepository.addMessage("s1", any()) } returns message
+
+        val result = manager.addMessage("s1", message)
         assertTrue(result.isSuccess)
-        assertEquals("Hello!", result.getOrThrow().content)
+        assertEquals("m1", result.getOrThrow().id)
+        coVerify { sessionRepository.addMessage("s1", message) }
     }
 
     @Test
-    fun `getConversationHistory returns messages`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "Chat").getOrThrow()
-        manager.addMessage(session.id, Message(id = "1", sessionId = session.id, role = MessageRole.User, content = "Hi"))
-        manager.addMessage(session.id, Message(id = "2", sessionId = session.id, role = MessageRole.Assistant, content = "Hello"))
-        val history = manager.getConversationHistory(session.id)
-        assertTrue(history.isSuccess)
-        assertEquals(2, history.getOrThrow().size)
+    fun `getConversationHistory returns messages from repository`() = runTest {
+        val now = Clock.System.now()
+        val messages = listOf(
+            Message(id = "1", sessionId = "s1", role = MessageRole.User, content = "Hi", timestamp = now),
+            Message(id = "2", sessionId = "s1", role = MessageRole.Assistant, content = "Hello", timestamp = now),
+        )
+        coEvery { sessionRepository.getMessages("s1") } returns messages
+
+        val result = manager.getConversationHistory("s1")
+        assertTrue(result.isSuccess)
+        assertEquals(2, result.getOrThrow().size)
     }
 
     @Test
-    fun `getConversationHistory with limit`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "Chat").getOrThrow()
-        repeat(5) { i ->
-            manager.addMessage(session.id, Message(id = "msg-$i", sessionId = session.id, role = MessageRole.User, content = "Msg $i"))
+    fun `getConversationHistory with limit delegates with limit`() = runTest {
+        coEvery { sessionRepository.getMessages("s1", 3) } returns emptyList()
+
+        manager.getConversationHistory("s1", limit = 3)
+        coVerify { sessionRepository.getMessages("s1", 3) }
+    }
+
+    @Test
+    fun `deleteSession delegates to repository`() = runTest {
+        coEvery { sessionRepository.deleteSession("s1") } returns Unit
+
+        val result = manager.deleteSession("s1")
+        assertTrue(result.isSuccess)
+        coVerify { sessionRepository.deleteSession("s1") }
+    }
+
+    @Test
+    fun `observeSessionEvents maps from observeMessages`() = runTest {
+        val now = Clock.System.now()
+        val messages = listOf(
+            Message(id = "1", sessionId = "s1", role = MessageRole.User, content = "Hi", timestamp = now),
+        )
+        every { sessionRepository.observeMessages("s1") } returns flowOf(messages)
+
+        manager.observeSessionEvents("s1").test {
+            val event = awaitItem()
+            assertTrue(event is SessionEvent.MessageAdded)
+            assertEquals("1", (event as SessionEvent.MessageAdded).message.id)
+            cancelAndIgnoreRemainingEvents()
         }
-        val history = manager.getConversationHistory(session.id, limit = 3)
-        assertTrue(history.isSuccess)
-        assertEquals(3, history.getOrThrow().size)
-    }
-
-    @Test
-    fun `deleteSession removes session`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "To Delete").getOrThrow()
-        assertTrue(manager.deleteSession(session.id).isSuccess)
-        assertTrue(manager.getSession(session.id).isFailure)
-    }
-
-    @Test
-    fun `archiveSession changes status`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "Archive Me").getOrThrow()
-        manager.archiveSession(session.id)
-        assertEquals(SessionStatus.Archived, manager.getSession(session.id).getOrThrow().status)
-    }
-
-    @Test
-    fun `getAllSessions returns active sessions only`() = runTest(testDispatcher) {
-        manager.createSession(title = "Active")
-        val s2 = manager.createSession(title = "Archive").getOrThrow()
-        manager.archiveSession(s2.id)
-        val sessions = manager.getAllSessions(includeArchived = false)
-        assertTrue(sessions.isSuccess)
-        assertEquals(1, sessions.getOrThrow().size)
-    }
-
-    @Test
-    fun `getAllSessions includes archived when requested`() = runTest(testDispatcher) {
-        manager.createSession(title = "Active")
-        val s2 = manager.createSession(title = "Archive").getOrThrow()
-        manager.archiveSession(s2.id)
-        val sessions = manager.getAllSessions(includeArchived = true)
-        assertTrue(sessions.isSuccess)
-        assertEquals(2, sessions.getOrThrow().size)
-    }
-
-    @Test
-    fun `getSessionContext returns context with messages`() = runTest(testDispatcher) {
-        val session = manager.createSession(title = "Context").getOrThrow()
-        manager.addMessage(session.id, Message(id = "1", sessionId = session.id, role = MessageRole.User, content = "Hello"))
-        val context = manager.getSessionContext(session.id)
-        assertTrue(context.isSuccess)
-        assertEquals(1, context.getOrThrow().messageCount)
     }
 }
