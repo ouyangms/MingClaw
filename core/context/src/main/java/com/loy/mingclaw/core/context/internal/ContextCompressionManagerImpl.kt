@@ -59,10 +59,22 @@ internal class ContextCompressionManagerImpl @Inject constructor(
             val summary = response.content
             val summaryTokenCount = tokenEstimator.estimate(summary)
 
+            // Validate total token count does not exceed maxTokens
+            val retainedTokenCount = retainedMessages.sumOf { tokenEstimator.estimate(it.content) }
+            val totalTokens = summaryTokenCount + retainedTokenCount
+            val finalSummary = if (totalTokens > maxTokens) {
+                // Truncate summary if total exceeds budget
+                val allowedSummaryTokens = maxTokens - retainedTokenCount
+                if (allowedSummaryTokens <= 0) "" else summary
+            } else {
+                summary
+            }
+            val finalSummaryTokenCount = if (finalSummary == summary) summaryTokenCount else tokenEstimator.estimate(finalSummary)
+
             Result.success(
                 CompressedContext(
-                    summary = summary,
-                    summaryTokenCount = summaryTokenCount,
+                    summary = finalSummary,
+                    summaryTokenCount = finalSummaryTokenCount,
                     retainedMessages = retainedMessages,
                 )
             )

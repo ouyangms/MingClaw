@@ -8,7 +8,6 @@ import com.loy.mingclaw.core.model.context.Session
 import com.loy.mingclaw.core.model.context.SessionEvent
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -20,15 +19,12 @@ internal class SessionContextManagerImpl @Inject constructor(
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : SessionContextManager {
 
-    private val sessionEvents = MutableSharedFlow<SessionEvent>(replay = 10)
-
     override suspend fun createSession(title: String?): Result<Session> =
         withContext(ioDispatcher) {
             try {
                 val session = sessionRepository.createSession(
                     title = title ?: "Session ${kotlinx.datetime.Clock.System.now().toEpochMilliseconds()}"
                 )
-                sessionEvents.emit(SessionEvent.Created(session))
                 Result.success(session)
             } catch (e: Exception) {
                 Result.failure(e)
@@ -52,7 +48,6 @@ internal class SessionContextManagerImpl @Inject constructor(
         withContext(ioDispatcher) {
             try {
                 val saved = sessionRepository.addMessage(sessionId, message)
-                sessionEvents.emit(SessionEvent.MessageAdded(saved))
                 Result.success(saved)
             } catch (e: Exception) {
                 Result.failure(e)
@@ -77,7 +72,6 @@ internal class SessionContextManagerImpl @Inject constructor(
         withContext(ioDispatcher) {
             try {
                 sessionRepository.deleteSession(sessionId)
-                sessionEvents.emit(SessionEvent.Deleted(sessionId))
                 Result.success(Unit)
             } catch (e: Exception) {
                 Result.failure(e)

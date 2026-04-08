@@ -115,6 +115,9 @@ class ContextOrchestratorImplTest {
         assertTrue(result.isSuccess)
         val context = result.getOrThrow()
         assertEquals(8, context.messages.size)
+        // Verify summary is injected into system prompt
+        assertTrue(context.systemPrompt.contains("对话历史摘要"))
+        assertTrue(context.systemPrompt.contains("Summary of old messages"))
     }
 
     @Test
