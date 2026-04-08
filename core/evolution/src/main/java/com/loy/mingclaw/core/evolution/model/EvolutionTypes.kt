@@ -15,6 +15,7 @@ enum class EvolutionTrigger {
 @Serializable
 enum class EvolutionPriority { LOW, MEDIUM, HIGH, IMMEDIATE }
 
+@Serializable
 data class EvolutionContext(
     val sessionId: String,
     val feedbackScore: Float,

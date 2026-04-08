@@ -1,13 +1,11 @@
 package com.loy.mingclaw.core.evolution.internal
 
 import com.loy.mingclaw.core.evolution.model.*
+import app.cash.turbine.test
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -101,21 +99,13 @@ class FeedbackCollectorImplTest {
 
     @Test
     fun observeFeedback_emitsCollectedFeedback() = runTest {
-        var collected: UserFeedback? = null
-        val job = launch {
-            collector.observeFeedback().collect { collected = it }
+        collector.observeFeedback().test {
+            collector.collectExplicitFeedback(
+                UserFeedback.Explicit("fb1", Clock.System.now(), "s1", ExplicitFeedbackType.THUMBS_UP, 5, "", FeedbackAspect.OVERALL)
+            )
+            val emitted = awaitItem()
+            assertEquals("fb1", emitted.feedbackId)
+            cancelAndIgnoreRemainingEvents()
         }
-        // Give the collector coroutine time to start subscribing
-        delay(50)
-
-        collector.collectExplicitFeedback(
-            UserFeedback.Explicit("fb1", Clock.System.now(), "s1", ExplicitFeedbackType.THUMBS_UP, 5, "", FeedbackAspect.OVERALL)
-        )
-
-        delay(50)
-        job.cancel()
-
-        assertNotNull(collected)
-        assertEquals("fb1", collected!!.feedbackId)
     }
 }

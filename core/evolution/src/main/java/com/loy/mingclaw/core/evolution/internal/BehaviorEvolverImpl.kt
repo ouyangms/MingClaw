@@ -1,6 +1,7 @@
 package com.loy.mingclaw.core.evolution.internal
 
 import com.loy.mingclaw.core.common.dispatchers.IODispatcher
+import com.loy.mingclaw.core.common.llm.CloudLlm
 import com.loy.mingclaw.core.evolution.BehaviorEvolver
 import com.loy.mingclaw.core.evolution.internal.prompts.BehaviorAnalysisPrompt
 import com.loy.mingclaw.core.evolution.model.AgentDecision
@@ -20,12 +21,16 @@ import javax.inject.Singleton
 
 @Singleton
 internal class BehaviorEvolverImpl @Inject constructor(
-    private val llmProvider: LlmProvider,
+    @CloudLlm private val llmProvider: LlmProvider,
     private val fileManager: EvolutionFileManager,
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : BehaviorEvolver {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    companion object {
+        private const val DEFAULT_MODEL = "qwen-plus"
+    }
 
     @Serializable
     private data class RawBehaviorAnalysis(
@@ -63,7 +68,7 @@ internal class BehaviorEvolverImpl @Inject constructor(
 
                 val promptMessages = BehaviorAnalysisPrompt.analyzePatterns(history, currentRules)
                 val llmResult = llmProvider.chat(
-                    model = "qwen-plus",
+                    model = DEFAULT_MODEL,
                     messages = promptMessages,
                     temperature = 0.3,
                 )
@@ -103,7 +108,7 @@ internal class BehaviorEvolverImpl @Inject constructor(
 
                 val promptMessages = BehaviorAnalysisPrompt.suggestRules(analysisJson, currentRules)
                 val llmResult = llmProvider.chat(
-                    model = "qwen-plus",
+                    model = DEFAULT_MODEL,
                     messages = promptMessages,
                     temperature = 0.3,
                 )

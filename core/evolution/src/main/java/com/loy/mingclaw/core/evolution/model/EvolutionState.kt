@@ -1,5 +1,8 @@
 package com.loy.mingclaw.core.evolution.model
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 sealed class EvolutionState {
     data object Idle : EvolutionState()
     data class Analyzing(val trigger: EvolutionTrigger) : EvolutionState()

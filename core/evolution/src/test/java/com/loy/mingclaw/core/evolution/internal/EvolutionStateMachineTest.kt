@@ -1,12 +1,9 @@
 package com.loy.mingclaw.core.evolution.internal
 
 import app.cash.turbine.test
-import com.loy.mingclaw.core.evolution.model.EvolutionPriority
 import com.loy.mingclaw.core.evolution.model.EvolutionProposal
-import com.loy.mingclaw.core.evolution.model.EvolutionResult
 import com.loy.mingclaw.core.evolution.model.EvolutionState
 import com.loy.mingclaw.core.evolution.model.EvolutionTrigger
-import com.loy.mingclaw.core.evolution.model.EvolutionType
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -27,21 +24,21 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun idle_toAnalyzing_succeeds() {
+    fun idle_toAnalyzing_succeeds() = runTest {
         val result = stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         assertTrue(result.isSuccess)
         assertTrue(stateMachine.currentState() is EvolutionState.Analyzing)
     }
 
     @Test
-    fun idle_toCompleted_fails() {
+    fun idle_toCompleted_fails() = runTest {
         val result = stateMachine.transitionTo(EvolutionState.Completed(emptyList()))
         assertTrue(result.isFailure)
         assertEquals(EvolutionState.Idle, stateMachine.currentState())
     }
 
     @Test
-    fun analyzing_toAwaitingApproval_succeeds() {
+    fun analyzing_toAwaitingApproval_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         val result = stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         assertTrue(result.isSuccess)
@@ -49,7 +46,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun analyzing_toFailed_succeeds() {
+    fun analyzing_toFailed_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         val result = stateMachine.transitionTo(EvolutionState.Failed("error"))
         assertTrue(result.isSuccess)
@@ -57,14 +54,14 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun analyzing_toIdle_fails() {
+    fun analyzing_toIdle_fails() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         val result = stateMachine.transitionTo(EvolutionState.Idle)
         assertTrue(result.isFailure)
     }
 
     @Test
-    fun awaitingApproval_toApplying_succeeds() {
+    fun awaitingApproval_toApplying_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         val result = stateMachine.transitionTo(EvolutionState.Applying(emptyList()))
@@ -73,7 +70,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun awaitingApproval_toIdle_succeeds() {
+    fun awaitingApproval_toIdle_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         val result = stateMachine.transitionTo(EvolutionState.Idle)
@@ -82,7 +79,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun awaitingApproval_toAnalyzing_fails() {
+    fun awaitingApproval_toAnalyzing_fails() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         val result = stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
@@ -90,7 +87,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun applying_toCompleted_succeeds() {
+    fun applying_toCompleted_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         stateMachine.transitionTo(EvolutionState.Applying(emptyList()))
@@ -100,7 +97,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun applying_toFailed_succeeds() {
+    fun applying_toFailed_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         stateMachine.transitionTo(EvolutionState.Applying(emptyList()))
@@ -110,7 +107,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun completed_toIdle_succeeds() {
+    fun completed_toIdle_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         stateMachine.transitionTo(EvolutionState.Applying(emptyList()))
@@ -121,7 +118,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun completed_toAnalyzing_succeeds() {
+    fun completed_toAnalyzing_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.AwaitingApproval(emptyList()))
         stateMachine.transitionTo(EvolutionState.Applying(emptyList()))
@@ -131,7 +128,7 @@ class EvolutionStateMachineTest {
     }
 
     @Test
-    fun failed_toIdle_succeeds() {
+    fun failed_toIdle_succeeds() = runTest {
         stateMachine.transitionTo(EvolutionState.Analyzing(EvolutionTrigger.MANUAL))
         stateMachine.transitionTo(EvolutionState.Failed("error"))
         val result = stateMachine.transitionTo(EvolutionState.Idle)

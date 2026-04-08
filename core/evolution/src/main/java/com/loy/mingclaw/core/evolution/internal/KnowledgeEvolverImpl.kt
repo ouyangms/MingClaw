@@ -1,6 +1,7 @@
 package com.loy.mingclaw.core.evolution.internal
 
 import com.loy.mingclaw.core.common.dispatchers.IODispatcher
+import com.loy.mingclaw.core.common.llm.CloudLlm
 import com.loy.mingclaw.core.data.repository.MemoryRepository
 import com.loy.mingclaw.core.data.repository.SessionRepository
 import com.loy.mingclaw.core.evolution.KnowledgeEvolver
@@ -27,12 +28,16 @@ internal class KnowledgeEvolverImpl @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val memoryRepository: MemoryRepository,
     private val embeddingService: EmbeddingService,
-    private val llmProvider: LlmProvider,
+    @CloudLlm private val llmProvider: LlmProvider,
     private val fileManager: EvolutionFileManager,
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : KnowledgeEvolver {
 
     private val json = Json { ignoreUnknownKeys = true }
+
+    companion object {
+        private const val DEFAULT_MODEL = "qwen-plus"
+    }
 
     @Serializable
     private data class RawKnowledgePoint(
@@ -58,7 +63,7 @@ internal class KnowledgeEvolverImpl @Inject constructor(
 
                 val promptMessages = KnowledgeExtractionPrompt.build(conversationContent)
                 val llmResult = llmProvider.chat(
-                    model = "qwen-plus",
+                    model = DEFAULT_MODEL,
                     messages = promptMessages,
                     temperature = 0.3,
                 )
@@ -99,14 +104,30 @@ internal class KnowledgeEvolverImpl @Inject constructor(
         withContext(ioDispatcher) {
             var added = 0
             var skipped = 0
+            val addedPoints = mutableListOf<KnowledgePoint>()
 
             for (kp in knowledge) {
                 val outcome = consolidateOne(kp)
                 if (outcome) {
                     added++
+                    addedPoints.add(kp)
                 } else {
                     skipped++
                 }
+            }
+
+            // Update human-readable MEMORY.md
+            if (addedPoints.isNotEmpty()) {
+                val existing = fileManager.readKnowledgeMemory()
+                val appendix = addedPoints.joinToString("\n") { kp ->
+                    "- [${kp.type}] ${kp.content} (confidence: ${"%.2f".format(kp.confidence)})"
+                }
+                val updated = if (existing.isBlank()) {
+                    "# Memory\n\n$appendix\n"
+                } else {
+                    "${existing.trimEnd('\n')}\n\n$appendix\n"
+                }
+                fileManager.writeKnowledgeMemory(updated)
             }
 
             Result.success(

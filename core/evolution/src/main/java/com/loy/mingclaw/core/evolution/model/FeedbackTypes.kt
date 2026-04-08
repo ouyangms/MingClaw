@@ -42,6 +42,7 @@ sealed class UserFeedback {
     ) : UserFeedback()
 }
 
+@Serializable
 data class FeedbackSummary(
     val periodStart: Instant,
     val periodEnd: Instant,
