@@ -5,7 +5,7 @@ import com.loy.mingclaw.core.context.TokenEstimator
 import com.loy.mingclaw.core.kernel.ConfigManager
 import com.loy.mingclaw.core.model.TokenBudget
 import com.loy.mingclaw.core.model.context.ContextComponent
-import com.loy.mingclaw.core.model.context.SessionContext
+import com.loy.mingclaw.core.model.context.Message
 import com.loy.mingclaw.core.model.context.WindowStatistics
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,12 +35,12 @@ internal class ContextWindowManagerImpl @Inject constructor(
 
     override fun estimateTokens(content: String): Int = tokenEstimator.estimate(content)
 
-    override fun shouldCompress(context: SessionContext): Boolean {
-        val config = configManager.getConfig()
-        val threshold = (config.maxTokens * 0.8).toInt()
-        val contextTokens = tokenEstimator.estimateMessages(context.messages)
+    override fun shouldCompress(messages: List<Message>, budget: TokenBudget): Boolean {
+        val threshold = (budget.conversationTokens * 0.8).toInt()
+        val contextTokens = tokenEstimator.estimateMessages(messages)
         return contextTokens > threshold
     }
 
+    // MVP: 后续增强 - returns default values, no historical tracking
     override fun getWindowStatistics(): WindowStatistics = WindowStatistics()
 }

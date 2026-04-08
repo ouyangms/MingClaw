@@ -8,8 +8,6 @@ import com.loy.mingclaw.core.model.TokenBudget
 import com.loy.mingclaw.core.model.context.ContextComponent
 import com.loy.mingclaw.core.model.context.Message
 import com.loy.mingclaw.core.model.context.MessageRole
-import com.loy.mingclaw.core.model.context.SessionContext
-import com.loy.mingclaw.core.model.context.SessionStatus
 import kotlinx.coroutines.flow.flowOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,22 +57,21 @@ class ContextWindowManagerImplTest {
     }
 
     @Test
-    fun `shouldCompress returns false for small context`() {
-        val context = SessionContext(
-            sessionId = "s1", title = "Test",
-            messages = listOf(Message(id = "1", sessionId = "s1", role = MessageRole.User, content = "Hi")),
-            status = SessionStatus.Active,
+    fun `shouldCompress returns false for small messages`() {
+        val budget = windowManager.calculateTokenBudget()
+        val messages = listOf(
+            Message(id = "1", sessionId = "s1", role = MessageRole.User, content = "Hi"),
         )
-        assertFalse(windowManager.shouldCompress(context))
+        assertFalse(windowManager.shouldCompress(messages, budget))
     }
 
     @Test
-    fun `shouldCompress returns true for large context`() {
+    fun `shouldCompress returns true for large messages`() {
+        val budget = windowManager.calculateTokenBudget()
         val largeMessages = (1..500).map { i ->
             Message(id = "$i", sessionId = "s1", role = MessageRole.User, content = "This is message number $i with some extra text to make it longer.")
         }
-        val context = SessionContext(sessionId = "s1", title = "Large", messages = largeMessages, status = SessionStatus.Active)
-        assertTrue(windowManager.shouldCompress(context))
+        assertTrue(windowManager.shouldCompress(largeMessages, budget))
     }
 
     @Test
