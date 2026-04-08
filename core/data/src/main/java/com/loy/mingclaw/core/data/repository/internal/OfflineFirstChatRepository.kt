@@ -27,6 +27,11 @@ internal class OfflineFirstChatRepository @Inject constructor(
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ChatRepository {
 
+    // MVP: 后续增强 - ContextOrchestrator integration will be wired at the app/feature layer
+    // to avoid circular dependency (core:context -> core:data -> core:context).
+    // The feature layer will call ContextOrchestrator.buildContext() before ChatRepository.chatStream()
+    // and pass the assembled ConversationContext.messages as ChatRequest.messages.
+
     override fun chatStream(request: ChatRequest): Flow<ChatStreamResult> = flow {
         // Persist user messages first
         for (msg in request.messages) {
