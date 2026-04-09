@@ -7,6 +7,7 @@ import com.loy.mingclaw.core.database.dao.EmbeddingDao
 import com.loy.mingclaw.core.database.dao.MemoryDao
 import com.loy.mingclaw.core.database.dao.MessageDao
 import com.loy.mingclaw.core.database.dao.SessionDao
+import com.loy.mingclaw.core.database.dao.VectorSearchDao
 import com.loy.mingclaw.core.database.dao.WorkspaceDao
 import dagger.Module
 import dagger.Provides
@@ -44,4 +45,9 @@ object DatabaseModule {
 
     @Provides
     fun provideEmbeddingDao(database: MingClawDatabase): EmbeddingDao = database.embeddingDao()
+
+    @Provides
+    @Singleton
+    fun provideVectorSearchDao(embeddingDao: EmbeddingDao): VectorSearchDao =
+        VectorSearchDao(embeddingDao)
 }

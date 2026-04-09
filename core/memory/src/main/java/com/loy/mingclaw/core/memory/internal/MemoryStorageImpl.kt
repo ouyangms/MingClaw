@@ -3,6 +3,7 @@ package com.loy.mingclaw.core.memory.internal
 import com.loy.mingclaw.core.common.dispatchers.IODispatcher
 import com.loy.mingclaw.core.database.dao.EmbeddingDao
 import com.loy.mingclaw.core.database.dao.MemoryDao
+import com.loy.mingclaw.core.database.dao.VectorSearchDao
 import com.loy.mingclaw.core.database.entity.EmbeddingEntity
 import com.loy.mingclaw.core.database.entity.MemoryEntity
 import com.loy.mingclaw.core.model.memory.Memory
@@ -13,7 +14,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -35,7 +35,7 @@ internal class MemoryStorageImpl @Inject constructor(
             if (memory.embedding.isNotEmpty()) {
                 embeddingDao.insert(EmbeddingEntity(
                     id = memory.id,
-                    embedding = json.encodeToString(ListSerializer(Float.serializer()), memory.embedding),
+                    embedding = VectorSearchDao.floatsToBlob(memory.embedding),
                     dimension = memory.embedding.size,
                 ))
             }
@@ -57,7 +57,7 @@ internal class MemoryStorageImpl @Inject constructor(
             if (memory.embedding.isNotEmpty()) {
                 embeddingDao.insert(EmbeddingEntity(
                     id = memory.id,
-                    embedding = json.encodeToString(ListSerializer(Float.serializer()), memory.embedding),
+                    embedding = VectorSearchDao.floatsToBlob(memory.embedding),
                     dimension = memory.embedding.size,
                 ))
             }
@@ -128,9 +128,9 @@ internal class MemoryStorageImpl @Inject constructor(
         updatedAt = updatedAt?.toEpochMilliseconds(),
     )
 
-    private fun MemoryEntity.toDomain(embeddingJson: String?): Memory {
-        val embeddingList: List<Float> = embeddingJson?.let {
-            try { json.decodeFromString<List<Float>>(it) } catch (_: Exception) { emptyList() }
+    private fun MemoryEntity.toDomain(embeddingBlob: ByteArray?): Memory {
+        val embeddingList: List<Float> = embeddingBlob?.let {
+            VectorSearchDao.blobToFloats(it)
         } ?: emptyList()
         return Memory(
             id = id,

@@ -22,4 +22,7 @@ interface EmbeddingDao {
 
     @Query("SELECT * FROM embeddings WHERE id = :id")
     suspend fun getById(id: String): EmbeddingEntity?
+
+    @Query("SELECT id FROM embeddings")
+    suspend fun getAllIds(): List<String>
 }

@@ -22,7 +22,7 @@ import com.loy.mingclaw.core.database.entity.WorkspaceEntity
         MemoryEntity::class,
         EmbeddingEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)

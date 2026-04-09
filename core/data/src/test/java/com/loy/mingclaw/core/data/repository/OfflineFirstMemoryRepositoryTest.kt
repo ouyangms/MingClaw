@@ -1,10 +1,10 @@
 package com.loy.mingclaw.core.data.repository
 
 import com.loy.mingclaw.core.data.repository.internal.OfflineFirstMemoryRepository
+import com.loy.mingclaw.core.database.dao.VectorSearchDao
 import com.loy.mingclaw.core.model.memory.Memory
 import com.loy.mingclaw.core.model.memory.MemoryStatistics
 import com.loy.mingclaw.core.model.memory.MemoryType
-import com.loy.mingclaw.core.memory.EmbeddingService
 import com.loy.mingclaw.core.memory.MemoryStorage
 import io.mockk.coEvery
 import io.mockk.every
@@ -21,7 +21,7 @@ import org.junit.Test
 class OfflineFirstMemoryRepositoryTest {
 
     private val memoryStorage = mockk<MemoryStorage>()
-    private val embeddingService = mockk<EmbeddingService>()
+    private val vectorSearchDao = mockk<VectorSearchDao>()
     private lateinit var repository: OfflineFirstMemoryRepository
 
     private val testInstant = Instant.fromEpochMilliseconds(1700000000000)
@@ -43,7 +43,7 @@ class OfflineFirstMemoryRepositoryTest {
     fun setup() {
         repository = OfflineFirstMemoryRepository(
             memoryStorage = memoryStorage,
-            embeddingService = embeddingService,
+            vectorSearchDao = vectorSearchDao,
             ioDispatcher = Dispatchers.Unconfined,
         )
     }
@@ -95,31 +95,31 @@ class OfflineFirstMemoryRepositoryTest {
 
     @Test
     fun vectorSearch_filtersBySimilarity() = runTest {
-        val memory2 = testMemory.copy(
-            id = "mem-2",
-            embedding = listOf(0.9f, 0.8f, 0.7f),
-        )
-        coEvery { memoryStorage.getAll() } returns Result.success(listOf(testMemory, memory2))
-        every { embeddingService.similarity(any(), any()) } answers {
-            val a = firstArg<List<Float>>()
-            val b = secondArg<List<Float>>()
-            // Simple dot product for test
-            a.zip(b).sumOf { (x, y) -> (x * y).toDouble() }.toFloat()
-        }
+        coEvery {
+            vectorSearchDao.searchBySimilarity(
+                queryEmbedding = listOf(1.0f, 0.0f, 0.0f),
+                limit = 10,
+                threshold = 0.0f,
+            )
+        } returns listOf("mem-2" to 0.9f, "mem-1" to 0.3f)
+        coEvery { memoryStorage.get("mem-1") } returns Result.success(testMemory)
+        coEvery { memoryStorage.get("mem-2") } returns Result.success(testMemory.copy(id = "mem-2"))
 
-        val queryEmbedding = listOf(1.0f, 0.0f, 0.0f)
-        val result = repository.vectorSearch(queryEmbedding, limit = 10, threshold = 0.0f)
+        val result = repository.vectorSearch(queryEmbedding = listOf(1.0f, 0.0f, 0.0f), limit = 10, threshold = 0.0f)
         assertTrue(result.isSuccess)
         val memories = result.getOrThrow()
-        // mem-2 should rank higher: dot(1,0.9) = 0.9 > dot(1,0.1) = 0.1
         assertEquals(2, memories.size)
-        assertEquals("mem-2", memories[0].id)
     }
 
     @Test
     fun vectorSearch_thresholdFilters() = runTest {
-        coEvery { memoryStorage.getAll() } returns Result.success(listOf(testMemory))
-        every { embeddingService.similarity(any(), any()) } returns 0.1f
+        coEvery {
+            vectorSearchDao.searchBySimilarity(
+                queryEmbedding = listOf(1.0f, 0.0f, 0.0f),
+                limit = 10,
+                threshold = 0.5f,
+            )
+        } returns emptyList()
 
         val result = repository.vectorSearch(
             queryEmbedding = listOf(1.0f, 0.0f, 0.0f),

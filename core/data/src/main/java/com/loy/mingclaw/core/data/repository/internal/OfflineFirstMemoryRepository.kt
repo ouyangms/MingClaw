@@ -2,9 +2,9 @@ package com.loy.mingclaw.core.data.repository.internal
 
 import com.loy.mingclaw.core.common.dispatchers.IODispatcher
 import com.loy.mingclaw.core.data.repository.MemoryRepository
+import com.loy.mingclaw.core.database.dao.VectorSearchDao
 import com.loy.mingclaw.core.model.memory.Memory
 import com.loy.mingclaw.core.model.memory.MemoryStatistics
-import com.loy.mingclaw.core.memory.EmbeddingService
 import com.loy.mingclaw.core.memory.MemoryStorage
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
@@ -16,7 +16,7 @@ import javax.inject.Singleton
 @Singleton
 internal class OfflineFirstMemoryRepository @Inject constructor(
     private val memoryStorage: MemoryStorage,
-    private val embeddingService: EmbeddingService,
+    private val vectorSearchDao: VectorSearchDao,
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : MemoryRepository {
 
@@ -49,18 +49,14 @@ internal class OfflineFirstMemoryRepository @Inject constructor(
         threshold: Float,
     ): Result<List<Memory>> = withContext(ioDispatcher) {
         runCatching {
-            // MVP implementation: load all memories and filter in-memory by cosine similarity
-            val allMemories = memoryStorage.getAll().getOrDefault(emptyList())
-            allMemories
-                .filter { it.embedding.isNotEmpty() }
-                .map { memory ->
-                    val similarity = embeddingService.similarity(queryEmbedding, memory.embedding)
-                    memory to similarity
-                }
-                .filter { (_, similarity) -> similarity >= threshold }
-                .sortedByDescending { (_, similarity) -> similarity }
-                .take(limit)
-                .map { (memory, _) -> memory }
+            val searchResults = vectorSearchDao.searchBySimilarity(
+                queryEmbedding = queryEmbedding,
+                limit = limit,
+                threshold = threshold,
+            )
+            searchResults.mapNotNull { (id, _) ->
+                memoryStorage.get(id).getOrNull()
+            }
         }
     }
 
