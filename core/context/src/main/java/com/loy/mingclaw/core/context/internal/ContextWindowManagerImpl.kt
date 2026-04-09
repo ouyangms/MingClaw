@@ -41,6 +41,23 @@ internal class ContextWindowManagerImpl @Inject constructor(
         return contextTokens > threshold
     }
 
-    // MVP: 后续增强 - returns default values, no historical tracking
-    override fun getWindowStatistics(): WindowStatistics = WindowStatistics()
+    private val usageHistory = mutableListOf<Int>()
+    private var compressionCount = 0
+
+    override fun recordUsage(tokenCount: Int) {
+        usageHistory.add(tokenCount)
+    }
+
+    override fun recordCompression() {
+        compressionCount++
+    }
+
+    override fun getWindowStatistics(): WindowStatistics {
+        if (usageHistory.isEmpty()) return WindowStatistics()
+        return WindowStatistics(
+            averageTokenUsage = usageHistory.average().toDouble(),
+            peakTokenUsage = usageHistory.maxOrNull() ?: 0,
+            compressionCount = compressionCount,
+        )
+    }
 }

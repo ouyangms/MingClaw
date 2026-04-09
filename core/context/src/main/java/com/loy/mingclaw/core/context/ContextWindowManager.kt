@@ -11,4 +11,6 @@ interface ContextWindowManager {
     fun estimateTokens(content: String): Int
     fun shouldCompress(messages: List<Message>, budget: TokenBudget): Boolean
     fun getWindowStatistics(): WindowStatistics
+    fun recordUsage(tokenCount: Int)
+    fun recordCompression()
 }

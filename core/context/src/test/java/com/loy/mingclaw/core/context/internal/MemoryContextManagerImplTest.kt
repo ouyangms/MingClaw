@@ -4,6 +4,7 @@ import com.loy.mingclaw.core.context.TokenEstimator
 import com.loy.mingclaw.core.data.repository.MemoryRepository
 import com.loy.mingclaw.core.memory.EmbeddingService
 import com.loy.mingclaw.core.model.memory.Memory
+import com.loy.mingclaw.core.model.memory.MemoryType
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -41,7 +42,7 @@ class MemoryContextManagerImplTest {
         )
 
         coEvery { embeddingService.generateEmbedding("test query") } returns Result.success(embedding)
-        coEvery { memoryRepository.vectorSearch(embedding, limit = 10, threshold = 0.5f) } returns Result.success(memories)
+        coEvery { memoryRepository.vectorSearch(embedding, limit = 20, threshold = 0.5f) } returns Result.success(memories)
         every { tokenEstimator.estimate("Memory one") } returns 3
         every { tokenEstimator.estimate("Memory two") } returns 3
 
@@ -61,7 +62,7 @@ class MemoryContextManagerImplTest {
         )
 
         coEvery { embeddingService.generateEmbedding("query") } returns Result.success(embedding)
-        coEvery { memoryRepository.vectorSearch(embedding, limit = 10, threshold = 0.5f) } returns Result.success(memories)
+        coEvery { memoryRepository.vectorSearch(embedding, limit = 20, threshold = 0.5f) } returns Result.success(memories)
         every { tokenEstimator.estimate("First memory that is somewhat long") } returns 20
         every { tokenEstimator.estimate("Second memory also quite long") } returns 20
         every { tokenEstimator.estimate("Third memory") } returns 10
@@ -98,5 +99,30 @@ class MemoryContextManagerImplTest {
         val result = manager.retrieveRelevantMemories("query", maxTokens = 100)
         assertTrue(result.isSuccess)
         assertEquals(0, result.getOrThrow().size)
+    }
+
+    @Test
+    fun `retrieveRelevantMemories deduplicates similar content`() = runTest {
+        val memory1 = Memory(
+            id = "m1", content = "Kotlin is a programming language", type = MemoryType.Semantic,
+            importance = 0.8f, metadata = emptyMap(), embedding = emptyList(),
+            createdAt = Clock.System.now(), accessedAt = Clock.System.now(),
+        )
+        val memory2 = Memory(
+            id = "m2", content = "Kotlin is a programming language too", type = MemoryType.Semantic,
+            importance = 0.7f, metadata = emptyMap(), embedding = emptyList(),
+            createdAt = Clock.System.now(), accessedAt = Clock.System.now(),
+        )
+        coEvery { embeddingService.generateEmbedding(any()) } returns Result.success(listOf(0.1f, 0.2f))
+        coEvery { memoryRepository.vectorSearch(any(), any(), any()) } returns Result.success(listOf(memory1, memory2))
+        every { tokenEstimator.estimate(any()) } returns 10
+
+        val result = manager.retrieveRelevantMemories("Kotlin", 1000)
+        assertTrue(result.isSuccess)
+        val memories = result.getOrNull()!!
+        // Both memories share 5/6 words -> Jaccard = 0.833 > 0.8
+        // So only the higher-importance one should remain
+        assertEquals(1, memories.size)
+        assertEquals("m1", memories[0].id)
     }
 }

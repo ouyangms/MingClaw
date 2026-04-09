@@ -29,14 +29,15 @@ internal class MemoryContextManagerImpl @Inject constructor(
 
             val candidates = memoryRepository.vectorSearch(
                 queryEmbedding = embedding,
-                limit = 10,
+                limit = 20,
                 threshold = 0.5f,
             ).getOrElse { return@withContext Result.failure(it) }
 
-            // MVP: 后续增强 - no memory expiry, importance decay, or dedup
+            val deduped = deduplicateByContent(candidates)
+
             val result = mutableListOf<Memory>()
             var usedTokens = 0
-            for (memory in candidates) {
+            for (memory in deduped) {
                 val tokens = tokenEstimator.estimate(memory.content)
                 if (usedTokens + tokens > maxTokens) break
                 result.add(memory)
@@ -47,5 +48,29 @@ internal class MemoryContextManagerImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private fun deduplicateByContent(memories: List<Memory>): List<Memory> {
+        val result = mutableListOf<Memory>()
+        for (memory in memories.sortedByDescending { it.importance }) {
+            val isDuplicate = result.any { existing ->
+                contentSimilarity(existing.content, memory.content) > 0.8
+            }
+            if (!isDuplicate) {
+                result.add(memory)
+            }
+        }
+        return result
+    }
+
+    private fun contentSimilarity(a: String, b: String): Float {
+        if (a == b) return 1.0f
+        val setA = a.split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
+        val setB = b.split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
+        if (setA.isEmpty() && setB.isEmpty()) return 1.0f
+        if (setA.isEmpty() || setB.isEmpty()) return 0.0f
+        val intersection = setA.intersect(setB).size
+        val union = setA.union(setB).size
+        return if (union > 0) intersection.toFloat() / union else 0.0f
     }
 }
