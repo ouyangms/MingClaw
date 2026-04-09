@@ -11,12 +11,12 @@ interface EvolutionEngine {
     fun observeState(): Flow<EvolutionState>
 
     /**
-     * Triggers an evolution cycle: analysis → proposals → apply.
+     * Triggers an evolution cycle: analysis → proposals.
      *
-     * In the current MVP, proposals are auto-applied without waiting for external approval.
-     * Future versions will stop at AwaitingApproval and require explicit [approveAndApply] call.
+     * Stops at [EvolutionState.AwaitingApproval] and returns the proposals for external review.
+     * Call [approveAndApply] to apply proposals or [rejectProposals] to discard them.
      */
-    suspend fun triggerEvolution(trigger: EvolutionTrigger, context: EvolutionContext): Result<List<EvolutionResult>>
+    suspend fun triggerEvolution(trigger: EvolutionTrigger, context: EvolutionContext): Result<List<EvolutionProposal>>
 
     /** Applies pre-generated proposals. For use when UI-driven approval flow is implemented. */
     suspend fun approveAndApply(proposals: List<EvolutionProposal>): Result<List<EvolutionResult>>

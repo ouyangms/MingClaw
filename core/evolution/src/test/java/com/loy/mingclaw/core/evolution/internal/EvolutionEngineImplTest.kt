@@ -4,7 +4,6 @@ import com.loy.mingclaw.core.evolution.BehaviorEvolver
 import com.loy.mingclaw.core.evolution.CapabilityEvolver
 import com.loy.mingclaw.core.evolution.EvolutionTriggerManager
 import com.loy.mingclaw.core.evolution.KnowledgeEvolver
-import com.loy.mingclaw.core.evolution.model.ConsolidationResult
 import com.loy.mingclaw.core.evolution.model.EvolutionContext
 import com.loy.mingclaw.core.evolution.model.EvolutionPriority
 import com.loy.mingclaw.core.evolution.model.EvolutionProposal
@@ -16,10 +15,8 @@ import com.loy.mingclaw.core.evolution.model.RuleUpdateType
 import com.loy.mingclaw.core.kernel.EventBus
 import io.mockk.coEvery
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
-import kotlinx.datetime.Instant
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -77,25 +74,18 @@ class EvolutionEngineImplTest {
     )
 
     @Test
-    fun triggerEvolution_fullFlow_success() = runTest {
+    fun triggerEvolution_stopsAtAwaitingApproval() = runTest {
         coEvery {
             triggerManager.shouldTrigger(EvolutionTrigger.MANUAL, testContext)
         } returns true
         coEvery { triggerManager.performAnalysis() } returns Result.success(listOf(behaviorProposal))
-        coEvery { behaviorEvolver.suggestRuleUpdates() } returns Result.success(
-            listOf(
-                RuleUpdate("u1", "rule-1", RuleUpdateType.ADD, "", "New rule", "Test", 0.9f),
-            ),
-        )
-        coEvery { behaviorEvolver.applyRuleUpdates(any()) } returns Result.success(Unit)
 
         val result = engine.triggerEvolution(EvolutionTrigger.MANUAL, testContext)
         assertTrue(result.isSuccess)
-        val results = result.getOrNull()!!
-        assertEquals(1, results.size)
-        assertTrue(results[0].success)
-        assertTrue(stateMachine.currentState() is EvolutionState.Completed)
-        verify { eventBus.publishAsync(any()) }
+        val proposals = result.getOrNull()!!
+        assertEquals(1, proposals.size)
+        assertEquals("p1", proposals[0].id)
+        assertTrue(stateMachine.currentState() is EvolutionState.AwaitingApproval)
     }
 
     @Test
@@ -118,6 +108,52 @@ class EvolutionEngineImplTest {
         val result = engine.triggerEvolution(EvolutionTrigger.MANUAL, testContext)
         assertTrue(result.isFailure)
         assertTrue(stateMachine.currentState() is EvolutionState.Failed)
+    }
+
+    @Test
+    fun manualApprovalFlow_triggerThenApprove() = runTest {
+        coEvery {
+            triggerManager.shouldTrigger(EvolutionTrigger.MANUAL, testContext)
+        } returns true
+        coEvery { triggerManager.performAnalysis() } returns Result.success(listOf(behaviorProposal))
+        coEvery { behaviorEvolver.suggestRuleUpdates() } returns Result.success(
+            listOf(
+                RuleUpdate("u1", "rule-1", RuleUpdateType.ADD, "", "New rule", "Test", 0.9f),
+            ),
+        )
+        coEvery { behaviorEvolver.applyRuleUpdates(any()) } returns Result.success(Unit)
+
+        // Step 1: Trigger
+        val triggerResult = engine.triggerEvolution(EvolutionTrigger.MANUAL, testContext)
+        assertTrue(triggerResult.isSuccess)
+        val proposals = triggerResult.getOrNull()!!
+        assertEquals(1, proposals.size)
+        assertTrue(stateMachine.currentState() is EvolutionState.AwaitingApproval)
+
+        // Step 2: Approve
+        val applyResult = engine.approveAndApply(proposals)
+        assertTrue(applyResult.isSuccess)
+        val results = applyResult.getOrNull()!!
+        assertEquals(1, results.size)
+        assertTrue(results[0].success)
+        assertTrue(stateMachine.currentState() is EvolutionState.Completed)
+    }
+
+    @Test
+    fun manualApprovalFlow_triggerThenReject() = runTest {
+        coEvery {
+            triggerManager.shouldTrigger(EvolutionTrigger.MANUAL, testContext)
+        } returns true
+        coEvery { triggerManager.performAnalysis() } returns Result.success(listOf(behaviorProposal))
+
+        // Step 1: Trigger
+        val triggerResult = engine.triggerEvolution(EvolutionTrigger.MANUAL, testContext)
+        assertTrue(triggerResult.isSuccess)
+        assertTrue(stateMachine.currentState() is EvolutionState.AwaitingApproval)
+
+        // Step 2: Reject
+        engine.rejectProposals()
+        assertTrue(stateMachine.currentState() is EvolutionState.Idle)
     }
 
     @Test

@@ -32,13 +32,17 @@ internal class EvolutionEngineImpl @Inject constructor(
     @IODispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : EvolutionEngine {
 
+    private var pendingSessionId: String = ""
+
     override fun observeState(): Flow<EvolutionState> = stateMachine.observeState()
 
     override suspend fun triggerEvolution(
         trigger: EvolutionTrigger,
         context: EvolutionContext,
-    ): Result<List<EvolutionResult>> = withContext(ioDispatcher) {
+    ): Result<List<EvolutionProposal>> = withContext(ioDispatcher) {
         try {
+            pendingSessionId = context.sessionId
+
             // Step 1: Transition to Analyzing
             stateMachine.transitionTo(EvolutionState.Analyzing(trigger))
                 .getOrElse { return@withContext Result.failure(it) }
@@ -74,25 +78,8 @@ internal class EvolutionEngineImpl @Inject constructor(
                 return@withContext Result.success(emptyList())
             }
 
-            // Step 5: Transition to Applying
-            stateMachine.transitionTo(EvolutionState.Applying(proposals))
-                .getOrElse { return@withContext Result.failure(it) }
-
-            // Step 6: Apply proposals automatically (MVP: auto-approve)
-            val results = applyProposals(proposals, context.sessionId)
-
-            // Step 7: Transition to Completed
-            stateMachine.transitionTo(EvolutionState.Completed(results))
-
-            val evolutionId = UUID.randomUUID().toString()
-            eventBus.publishAsync(
-                Event.EvolutionCompleted(
-                    evolutionId = evolutionId,
-                    changes = results.flatMap { it.changes },
-                ),
-            )
-
-            Result.success(results)
+            // Stop here — caller must approveAndApply() or rejectProposals()
+            Result.success(proposals)
         } catch (e: Exception) {
             stateMachine.transitionTo(EvolutionState.Failed(e.message ?: "Unknown error"))
             eventBus.publishAsync(Event.EvolutionFailed("", e.message ?: "Unknown error"))
@@ -106,7 +93,7 @@ internal class EvolutionEngineImpl @Inject constructor(
                 stateMachine.transitionTo(EvolutionState.Applying(proposals))
                     .getOrElse { return@withContext Result.failure(it) }
 
-                val results = applyProposals(proposals, "")
+                val results = applyProposals(proposals, pendingSessionId)
 
                 stateMachine.transitionTo(EvolutionState.Completed(results))
 
