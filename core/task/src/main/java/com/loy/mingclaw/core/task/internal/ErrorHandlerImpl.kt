@@ -7,6 +7,7 @@ import com.loy.mingclaw.core.model.task.ErrorHandlingStrategy
 import com.loy.mingclaw.core.model.task.ErrorRecord
 import com.loy.mingclaw.core.task.ErrorHandler
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
@@ -22,20 +23,38 @@ internal class ErrorHandlerImpl @Inject constructor(
 
     override suspend fun handleError(task: AgentTask, error: String): ErrorHandlingResult =
         withContext(ioDispatcher) {
+            val strategy = findStrategy(error)
+            val metadata = buildMetadata(strategy)
             val record = ErrorRecord(
                 id = UUID.randomUUID().toString(),
                 taskId = task.id,
                 error = error,
+                metadata = metadata,
             )
             errorHistory.add(record)
 
-            val strategy = findStrategy(error)
             when (strategy) {
-                is ErrorHandlingStrategy.Retry -> ErrorHandlingResult.Failed("Retry not yet supported in MVP: $error")
+                is ErrorHandlingStrategy.Retry -> {
+                    delay(strategy.delayMs)
+                    ErrorHandlingResult.Recovered(
+                        mapOf(
+                            "taskId" to task.id,
+                            "strategy" to "retry",
+                            "retryCount" to "0",
+                            "maxRetries" to strategy.maxRetries.toString(),
+                        )
+                    )
+                }
+                is ErrorHandlingStrategy.Fallback -> ErrorHandlingResult.Recovered(
+                    mapOf(
+                        "taskId" to task.id,
+                        "strategy" to "fallback",
+                        "fallbackType" to strategy.fallbackType,
+                    )
+                )
                 is ErrorHandlingStrategy.Ignore -> ErrorHandlingResult.Ignored
                 is ErrorHandlingStrategy.Fail -> ErrorHandlingResult.Failed(error)
                 null -> ErrorHandlingResult.Failed(error)
-                is ErrorHandlingStrategy.Fallback -> ErrorHandlingResult.Failed("Fallback not yet supported in MVP: $error")
             }
         }
 
@@ -49,6 +68,21 @@ internal class ErrorHandlerImpl @Inject constructor(
         } else {
             errorHistory.toList()
         }
+    }
+
+    private fun buildMetadata(strategy: ErrorHandlingStrategy?): Map<String, String> = when (strategy) {
+        is ErrorHandlingStrategy.Retry -> mapOf(
+            "strategy" to "retry",
+            "maxRetries" to strategy.maxRetries.toString(),
+            "delayMs" to strategy.delayMs.toString(),
+        )
+        is ErrorHandlingStrategy.Fallback -> mapOf(
+            "strategy" to "fallback",
+            "fallbackType" to strategy.fallbackType,
+        )
+        is ErrorHandlingStrategy.Ignore -> mapOf("strategy" to "ignore")
+        is ErrorHandlingStrategy.Fail -> mapOf("strategy" to "fail")
+        null -> emptyMap()
     }
 
     private fun findStrategy(error: String): ErrorHandlingStrategy? {

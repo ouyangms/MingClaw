@@ -59,4 +59,50 @@ class ErrorHandlerImplTest {
         val history = handler.getErrorHistory(null)
         assertEquals(2, history.size)
     }
+
+    @Test
+    fun handleError_retryStrategy_returnsRecoveredAfterDelay() = runTest(scheduler) {
+        handler.registerStrategy("timeout", ErrorHandlingStrategy.Retry(maxRetries = 2, delayMs = 100))
+        val task = AgentTask(id = "1", type = "test")
+        val result = handler.handleError(task, "Connection timeout")
+        assertTrue(result is ErrorHandlingResult.Recovered)
+        val recovered = result as ErrorHandlingResult.Recovered
+        assertEquals("1", recovered.data["taskId"])
+        assertEquals("retry", recovered.data["strategy"])
+        assertEquals("0", recovered.data["retryCount"])
+    }
+
+    @Test
+    fun handleError_retryStrategy_recordsRetryInMetadata() = runTest(scheduler) {
+        handler.registerStrategy("timeout", ErrorHandlingStrategy.Retry(maxRetries = 3, delayMs = 50))
+        val task = AgentTask(id = "1", type = "test")
+        handler.handleError(task, "Connection timeout")
+        val history = handler.getErrorHistory("1")
+        assertEquals(1, history.size)
+        assertEquals("Connection timeout", history[0].error)
+        assertEquals("retry", history[0].metadata["strategy"])
+    }
+
+    @Test
+    fun handleError_fallbackStrategy_returnsRecovered() = runTest(scheduler) {
+        handler.registerStrategy("api", ErrorHandlingStrategy.Fallback(fallbackType = "cache"))
+        val task = AgentTask(id = "1", type = "test")
+        val result = handler.handleError(task, "api call failed")
+        assertTrue(result is ErrorHandlingResult.Recovered)
+        val recovered = result as ErrorHandlingResult.Recovered
+        assertEquals("1", recovered.data["taskId"])
+        assertEquals("fallback", recovered.data["strategy"])
+        assertEquals("cache", recovered.data["fallbackType"])
+    }
+
+    @Test
+    fun handleError_fallbackStrategy_recordsFallbackInMetadata() = runTest(scheduler) {
+        handler.registerStrategy("api", ErrorHandlingStrategy.Fallback(fallbackType = "cache"))
+        val task = AgentTask(id = "1", type = "test")
+        handler.handleError(task, "api call failed")
+        val history = handler.getErrorHistory("1")
+        assertEquals(1, history.size)
+        assertEquals("fallback", history[0].metadata["strategy"])
+        assertEquals("cache", history[0].metadata["fallbackType"])
+    }
 }
