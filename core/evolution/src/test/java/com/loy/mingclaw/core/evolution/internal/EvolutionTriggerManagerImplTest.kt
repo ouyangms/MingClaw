@@ -64,8 +64,15 @@ class EvolutionTriggerManagerImplTest {
     }
 
     @Test
-    fun shouldTrigger_capabilityGap_alwaysFalse() = runTest {
-        assertFalse(triggerManager.shouldTrigger(EvolutionTrigger.CAPABILITY_GAP, baseContext))
+    fun shouldTrigger_capabilityGap_lowSuccessRate_returnsTrue() = runTest {
+        val context = baseContext.copy(taskSuccessRate = 0.3f)
+        assertTrue(triggerManager.shouldTrigger(EvolutionTrigger.CAPABILITY_GAP, context))
+    }
+
+    @Test
+    fun shouldTrigger_capabilityGap_highSuccessRate_returnsFalse() = runTest {
+        val context = baseContext.copy(taskSuccessRate = 0.8f)
+        assertFalse(triggerManager.shouldTrigger(EvolutionTrigger.CAPABILITY_GAP, context))
     }
 
     @Test

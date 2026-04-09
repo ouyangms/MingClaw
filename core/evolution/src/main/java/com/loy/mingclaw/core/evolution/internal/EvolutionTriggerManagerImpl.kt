@@ -41,7 +41,7 @@ internal class EvolutionTriggerManagerImpl @Inject constructor(
             (context.lastEvolution == null ||
                 context.lastEvolution < Clock.System.now()
                     .minus(DateTimePeriod(hours = 1), TimeZone.UTC))
-        EvolutionTrigger.CAPABILITY_GAP -> false // MVP: no skill marketplace
+        EvolutionTrigger.CAPABILITY_GAP -> context.taskSuccessRate < 0.5f
         EvolutionTrigger.SCHEDULED -> true
         EvolutionTrigger.MANUAL -> true
     }
