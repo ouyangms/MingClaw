@@ -53,9 +53,9 @@ internal class ContextWindowManagerImpl @Inject constructor(
     }
 
     override fun getWindowStatistics(): WindowStatistics {
-        if (usageHistory.isEmpty()) return WindowStatistics()
+        if (usageHistory.isEmpty()) return WindowStatistics(compressionCount = compressionCount)
         return WindowStatistics(
-            averageTokenUsage = usageHistory.average().toDouble(),
+            averageTokenUsage = usageHistory.average(),
             peakTokenUsage = usageHistory.maxOrNull() ?: 0,
             compressionCount = compressionCount,
         )

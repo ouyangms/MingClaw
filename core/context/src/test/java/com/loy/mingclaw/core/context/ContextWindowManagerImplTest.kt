@@ -106,4 +106,14 @@ class ContextWindowManagerImplTest {
         assertEquals(0, stats.peakTokenUsage)
         assertEquals(0, stats.compressionCount)
     }
+
+    @Test
+    fun `getWindowStatistics preserves compression count without usage history`() {
+        windowManager.recordCompression()
+        windowManager.recordCompression()
+        val stats = windowManager.getWindowStatistics()
+        assertEquals(0.0, stats.averageTokenUsage, 0.1)
+        assertEquals(0, stats.peakTokenUsage)
+        assertEquals(2, stats.compressionCount)
+    }
 }
